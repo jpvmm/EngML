@@ -20,8 +20,8 @@ def model_training(
     input_path: str = "/gcs/default_pipeline/credit_card_default.csv",
     project: str = PROJECT_ID,
     region: str = REGION,
-    serving_container: str = "us-east1-docker.pkg.dev/qacomp/custom-predictor-repo/custom-predictor:latest", # noqa E501
-):  
+    serving_container: str = "us-east1-docker.pkg.dev/qacomp/custom-predictor-repo/custom-predictor:latest",  # noqa E501
+):
     dataset = read_and_process_data(input_path=input_path)
     train_task = train_model(
         train_set=dataset.outputs["train"], test_set=dataset.outputs["test"]
