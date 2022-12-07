@@ -1,0 +1,452 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-compare-results-in-bigquery": {
+        "executorLabel": "exec-compare-results-in-bigquery",
+        "inputDefinitions": {
+          "parameters": {
+            "score": {
+              "type": "DOUBLE"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "deploy": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-condition-model-comparison-1": {
+        "dag": {
+          "tasks": {
+            "deploy-model": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-deploy-model"
+              },
+              "inputs": {
+                "artifacts": {
+                  "model": {
+                    "componentInputArtifact": "pipelineparam--train-model-model"
+                  }
+                },
+                "parameters": {
+                  "project": {
+                    "componentInputParameter": "pipelineparam--project"
+                  },
+                  "region": {
+                    "componentInputParameter": "pipelineparam--region"
+                  },
+                  "serving_container_image_uri": {
+                    "componentInputParameter": "pipelineparam--serving_container"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "deploy-model"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "artifacts": {
+            "pipelineparam--train-model-model": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "pipelineparam--compare-results-in-bigquery-deploy": {
+              "type": "STRING"
+            },
+            "pipelineparam--project": {
+              "type": "STRING"
+            },
+            "pipelineparam--region": {
+              "type": "STRING"
+            },
+            "pipelineparam--serving_container": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-deploy-model": {
+        "executorLabel": "exec-deploy-model",
+        "inputDefinitions": {
+          "artifacts": {
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "project": {
+              "type": "STRING"
+            },
+            "region": {
+              "type": "STRING"
+            },
+            "serving_container_image_uri": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "vertex_endpoint": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "vertex_model": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-read-and-process-data": {
+        "executorLabel": "exec-read-and-process-data",
+        "inputDefinitions": {
+          "parameters": {
+            "input_path": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "test": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "train": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-train-model": {
+        "executorLabel": "exec-train-model",
+        "inputDefinitions": {
+          "artifacts": {
+            "test_set": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "train_set": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "metrics": {
+              "artifactType": {
+                "schemaTitle": "system.Metrics",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "score": {
+              "type": "DOUBLE"
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-compare-results-in-bigquery": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "compare_results_in_bigquery"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'google-cloud-bigquery==2.34.3' 'pandas' 'pyarrow' 'kfp==1.8.16' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef compare_results_in_bigquery(\n    score: float,\n) -> NamedTuple(\"Outputs\", [(\"deploy\", bool)]):\n    \"\"\"Will query BigQuery table containing the scores of the historical models\n    of this project. If the score is bigger than the biggest one in BQ this\n    model will be set to deployed\"\"\"\n    import logging\n\n    from google.cloud import bigquery\n\n    logging.getLogger().setLevel(logging.INFO)\n\n    table_id = \"qacomp.default_credit.default_credit_data\"\n    client = bigquery.Client(project=\"qacomp\")\n\n    def find_max_score_bq():\n        \"\"\"Query BQ to get the max score of previous models\"\"\"\n        try:\n            sql = f\"SELECT * FROM {table_id} LIMIT 1000\"\n            df = client.query(sql).to_dataframe()\n            max_score = df.f1_score.max()\n        except Exception as e:\n            max_score = 0\n            logging.error(f\"Not able to query BQ {e}\")\n        return max_score\n\n    def insert_row_to_bq(score):\n        \"\"\"Will insert the current trained model results to BQ\"\"\"\n        # Insert new model values\n        rows_to_insert = [\n            {\"clf_name\": \"RandomForest\", \"f1_score\": score},\n        ]\n        errors = client.insert_rows_json(\n            table_id, rows_to_insert, row_ids=[None] * len(rows_to_insert)\n        )\n\n        if errors == []:\n            logging.info(\"No Errors on the update\")\n        else:\n            logging.error(f\"Errors on the update {errors}\")\n\n    max_score = find_max_score_bq()\n    insert_row_to_bq(score)\n\n    if score > max_score:\n        deploy = True\n    else:\n        deploy = False\n    logging.info(f\"Deploy result: {deploy}\")\n    return (deploy,)\n\n"
+            ],
+            "image": "python:3.9"
+          }
+        },
+        "exec-deploy-model": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "deploy_model"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'google-cloud-aiplatform' 'scikit-learn==1.0.0' 'kfp' 'kfp==1.8.16' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef deploy_model(\n    model: Input[Model],\n    project: str,\n    region: str,\n    serving_container_image_uri: str,\n    vertex_endpoint: Output[Artifact],\n    vertex_model: Output[Model],\n):\n    from google.cloud import aiplatform\n\n    aiplatform.init(project=project, location=region)\n\n    DISPLAY_NAME = \"DefaultRisk\"\n    # MODEL_NAME = \"defaultrisk-rf\"\n    ENDPOINT_NAME = \"default_risk_v2\"\n\n    def create_endpoint(project: str = project, region: str = region) -> str:\n        \"\"\"Will list endpoints in the region and update it for the current\n        model in case of deployment\n        :param project: GCP Project for this operation\n        :param regio: GCP Region for this operation\"\"\"\n        endpoints = aiplatform.Endpoint.list(\n            filter='display_name=\"{}\"'.format(ENDPOINT_NAME),\n            order_by=\"create_time desc\",\n            project=project,\n            location=region,\n        )\n        if len(endpoints) > 0:\n            endpoint = endpoints[0]  # will update the endpoint\n        else:\n            endpoint = aiplatform.Endpoint.create(\n                display_name=ENDPOINT_NAME, project=project, location=region\n            )\n        return endpoint\n\n    endpoint = create_endpoint()\n\n    # Import a model programmatically\n    model_upload = aiplatform.Model.upload(\n        display_name=DISPLAY_NAME,\n        artifact_uri=model.uri.replace(\"/model\", \"/\"),\n        serving_container_image_uri=serving_container_image_uri,\n        serving_container_health_route=\"/healthcheck\",\n        serving_container_predict_route=\"/predict\",\n        serving_container_ports=[8050],\n    )\n    model_deploy = model_upload.deploy(\n        machine_type=\"n1-standard-4\",\n        endpoint=endpoint,\n        traffic_split={\"0\": 100},\n        deployed_model_display_name=DISPLAY_NAME,\n    )\n\n    # Save data to the output params\n    vertex_model.uri = model_deploy.resource_name\n\n"
+            ],
+            "image": "python:3.9"
+          }
+        },
+        "exec-read-and-process-data": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "read_and_process_data"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'scikit-learn' 'kfp==1.8.16' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef read_and_process_data(\n    input_path: str, train: Output[Dataset], test: Output[Dataset]\n):\n    \"\"\"Will read the dataset from GCP Bucket and validate with Evidently\n    :param input_path: The FUSE FS path to a .csv file containing the data which\n    the model will be trained\n    The dataset will be splitted in train and test for the model training\"\"\"\n    import pandas as pd\n    from sklearn.model_selection import train_test_split\n\n    def read_and_make_features(input_path):\n        \"\"\"Read CSV and create new features based in modeling experimentation\"\"\"\n        df = pd.read_csv(input_path)\n        df[\"MARRIAGE\"] = df[\"MARRIAGE\"].astype(\"category\")\n        df[\"SEX\"] = df[\"SEX\"].astype(\"category\")\n        df[\"EDUCATION\"] = df[\"EDUCATION\"].astype(\"category\")\n        df[\"diff_paid1\"] = df.apply(lambda x: x[\"BILL_AMT1\"] - x[\"PAY_AMT1\"], axis=1)\n        df[\"diff_paid2\"] = df.apply(lambda x: x[\"BILL_AMT2\"] - x[\"PAY_AMT2\"], axis=1)\n        df[\"diff_paid3\"] = df.apply(lambda x: x[\"BILL_AMT3\"] - x[\"PAY_AMT3\"], axis=1)\n        df[\"diff_paid4\"] = df.apply(lambda x: x[\"BILL_AMT4\"] - x[\"PAY_AMT4\"], axis=1)\n        df[\"diff_paid5\"] = df.apply(lambda x: x[\"BILL_AMT5\"] - x[\"PAY_AMT5\"], axis=1)\n        df[\"diff_paid6\"] = df.apply(lambda x: x[\"BILL_AMT6\"] - x[\"PAY_AMT6\"], axis=1)\n        df[\"sum_bill_amount\"] = df.apply(\n            lambda x: x[\"BILL_AMT1\"]\n            + x[\"BILL_AMT2\"]\n            + x[\"BILL_AMT3\"]\n            + x[\"BILL_AMT4\"]\n            + x[\"BILL_AMT5\"]\n            + x[\"BILL_AMT6\"],\n            axis=1,\n        )\n        df[\"sum_payment_delay\"] = df.apply(\n            lambda x: x[\"PAY_0\"]\n            + x[\"PAY_2\"]\n            + x[\"PAY_3\"]\n            + x[\"PAY_4\"]\n            + x[\"PAY_5\"]\n            + x[\"PAY_6\"],\n            axis=1,\n        )\n        df[\"sum_payment_amount\"] = df.apply(\n            lambda x: x[\"PAY_AMT1\"]\n            + x[\"PAY_AMT2\"]\n            + x[\"PAY_AMT3\"]\n            + x[\"PAY_AMT4\"]\n            + x[\"PAY_AMT5\"]\n            + x[\"PAY_AMT6\"],\n            axis=1,\n        )\n\n        df[\"%_sum_bill_in_limit\"] = df.apply(\n            lambda x: (x[\"sum_bill_amount\"] / x[\"LIMIT_BAL\"]) * 100, axis=1\n        )\n\n    df = read_and_make_features(input_path)\n    # Simple split data\n    x_train, x_test = train_test_split(df, test_size=0.15, random_state=42)\n\n    with open(train.path, \"w\") as f:\n        x_train.to_csv(f, index=False)\n\n    with open(test.path, \"w\") as f:\n        x_test.to_csv(f, index=False)\n\n"
+            ],
+            "image": "python:3.9"
+          }
+        },
+        "exec-train-model": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "train_model"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'scikit-learn' 'xgboost' 'kfp==1.8.16' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef train_model(\n    train_set: Input[Dataset],\n    test_set: Input[Dataset],\n    metrics: Output[Metrics],\n    model: Output[Model],\n) -> NamedTuple(\"Outputs\", [(\"score\", float)]):\n    \"\"\"Will train a machine learning model for default credit prediction\n    :param x_train: Train set for training\n    :param x_test: dataset for testing\"\"\"\n\n    import logging\n    import pickle\n\n    import pandas as pd\n    from sklearn.compose import ColumnTransformer\n    from sklearn.ensemble import RandomForestClassifier\n    from sklearn.impute import SimpleImputer\n    from sklearn.metrics import accuracy_score, f1_score, recall_score\n    from sklearn.model_selection import GridSearchCV\n    from sklearn.pipeline import Pipeline\n    from sklearn.preprocessing import OneHotEncoder, StandardScaler\n\n    logging.getLogger().setLevel(logging.INFO)\n\n    def read_and_drop_columns(set_path: str) -> Tuple[pd.DataFrame, pd.Series]:\n        \"\"\"Read csv and drop unused columns\"\"\"\n        try:\n            df = pd.read_csv(set_path)\n            logging.info(f\"Data read from {set_path}\")\n        except Exception as e:\n            logging.error(f\"Data must be in CSV format {e} {set_path}\")\n            raise ValueError(f\"Data must be in CSV format\")\n\n        y = df[\"default payment_next_month\"].values\n        x = df([\"default payment_next_month\", \"ID\"], axis=1)\n\n        return x, y\n\n    def create_columns_transformer() -> ColumnTransformer:\n        try:\n            cat_features = [\"SEX\", \"EDUCATION\", \"MARRIAGE\"]\n            cat_transformer = Pipeline(\n                steps=[(\"imputer\", OneHotEncoder(handle_unknown=\"ignore\"))]\n            )\n        except Exception as e:\n            logging.error(f\"Not able to create categorical features pipeline {e}\")\n            raise ValueError(f\"Not able to create categorical features pipeline {e}\")\n\n        try:\n            numeric_features = [\n                \"LIMIT_BAL\",\n                \"AGE\",\n                \"PAY_0\",\n                \"PAY_2\",\n                \"PAY_3\",\n                \"PAY_4\",\n                \"PAY_5\",\n                \"PAY_6\",\n                \"BILL_AMT1\",\n                \"BILL_AMT2\",\n                \"BILL_AMT3\",\n                \"BILL_AMT4\",\n                \"BILL_AMT5\",\n                \"BILL_AMT6\",\n                \"PAY_AMT1\",\n                \"PAY_AMT2\",\n                \"PAY_AMT3\",\n                \"PAY_AMT4\",\n                \"PAY_AMT5\",\n                \"PAY_AMT6\",\n                \"diff_paid1\",\n                \"diff_paid2\",\n                \"diff_paid3\",\n                \"diff_paid4\",\n                \"diff_paid5\",\n                \"diff_paid6\",\n                \"sum_bill_amount\",\n                \"sum_payment_delay\",\n                \"sum_payment_amount\",\n                \"%_sum_bill_in_limit\",\n            ]\n            num_transformer = Pipeline(\n                steps=[\n                    (\"imputer\", SimpleImputer(strategy=\"median\")),\n                    (\"scaler\", StandardScaler()),\n                ]\n            )\n        except Exception as e:\n            logging.error(f\"Not able to create numerical features pipeline {e}\")\n            raise ValueError(f\"Not able to create numerical features pipeline {e}\")\n\n        preprocessor = ColumnTransformer(\n            transformers=[\n                (\"cat\", cat_transformer, cat_features),\n                (\"num\", num_transformer, numeric_features),\n            ],\n            remainder=\"passthrough\",\n        )\n        return preprocessor\n\n    def create_model_pipeline(preprocessor: ColumnTransformer):\n        \"\"\"Create a RandomForest Classifier and insert it in a pipeline\"\"\"\n        mdl = RandomForestClassifier(random_state=42)\n\n        rf_pipe = Pipeline([(\"preprocessor\", preprocessor), (\"classifier\", mdl)])\n\n        param_grid_rf = {\"classifier__max_depth\": [500]}\n        rf_grid = GridSearchCV(\n            rf_pipe, param_grid_rf, cv=2, n_jobs=-1, scoring=\"f1_macro\"\n        )\n\n        return rf_grid\n\n    def log_metrics(y_test, y_pred) -> None:\n        \"\"\"Will log the metric to a Vertex Artifact\"\"\"\n        f1 = f1_score(y_test, y_pred, average=\"macro\")\n        acc = accuracy_score(y_test, y_pred)\n        recall = recall_score(y_test, y_pred)\n        metrics.log_metric(\"accuracy\", acc)\n        metrics.log_metric(\"recall\", recall)\n        metrics.log_metric(\"f1-score\", f1)\n\n        return f1\n\n    x_train, y_train = read_and_drop_columns(train_set.path)\n    x_test, y_test = read_and_drop_columns(test_set.path)\n\n    preprocessor = create_columns_transformer()\n\n    mdl = create_model_pipeline(preprocessor)\n\n    mdl.fit(x_train, y_train)\n    y_pred = mdl.predict(x_test)\n    f1 = log_metrics(y_test, y_pred)\n\n    # Saving model\n    model.metadata[\"framework\"] = \"randomforest\"\n    file_name = model.path + \".pkl\"\n    with open(file_name, \"wb\") as file:\n        pickle.dump(mdl, file)\n\n    logging.info(f\"Model saved at... {file_name}\")\n    logging.info(f\"Model path at... {model.path}\")\n\n    return (f1,)\n\n"
+            ],
+            "image": "python:3.9"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "uci-testv1"
+    },
+    "root": {
+      "dag": {
+        "outputs": {
+          "artifacts": {
+            "train-model-metrics": {
+              "artifactSelectors": [
+                {
+                  "outputArtifactKey": "metrics",
+                  "producerSubtask": "train-model"
+                }
+              ]
+            }
+          }
+        },
+        "tasks": {
+          "compare-results-in-bigquery": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-compare-results-in-bigquery"
+            },
+            "dependentTasks": [
+              "train-model"
+            ],
+            "inputs": {
+              "parameters": {
+                "score": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "score",
+                    "producerTask": "train-model"
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "compare-results-in-bigquery"
+            }
+          },
+          "condition-model-comparison-1": {
+            "componentRef": {
+              "name": "comp-condition-model-comparison-1"
+            },
+            "dependentTasks": [
+              "compare-results-in-bigquery",
+              "train-model"
+            ],
+            "inputs": {
+              "artifacts": {
+                "pipelineparam--train-model-model": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "model",
+                    "producerTask": "train-model"
+                  }
+                }
+              },
+              "parameters": {
+                "pipelineparam--compare-results-in-bigquery-deploy": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "deploy",
+                    "producerTask": "compare-results-in-bigquery"
+                  }
+                },
+                "pipelineparam--project": {
+                  "componentInputParameter": "project"
+                },
+                "pipelineparam--region": {
+                  "componentInputParameter": "region"
+                },
+                "pipelineparam--serving_container": {
+                  "componentInputParameter": "serving_container"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "condition-model-comparison-1"
+            },
+            "triggerPolicy": {
+              "condition": "inputs.parameters['pipelineparam--compare-results-in-bigquery-deploy'].string_value == 'true'"
+            }
+          },
+          "read-and-process-data": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-read-and-process-data"
+            },
+            "inputs": {
+              "parameters": {
+                "input_path": {
+                  "componentInputParameter": "input_path"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "read-and-process-data"
+            }
+          },
+          "train-model": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-train-model"
+            },
+            "dependentTasks": [
+              "read-and-process-data"
+            ],
+            "inputs": {
+              "artifacts": {
+                "test_set": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "test",
+                    "producerTask": "read-and-process-data"
+                  }
+                },
+                "train_set": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "train",
+                    "producerTask": "read-and-process-data"
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "train-model"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "input_path": {
+            "type": "STRING"
+          },
+          "project": {
+            "type": "STRING"
+          },
+          "region": {
+            "type": "STRING"
+          },
+          "serving_container": {
+            "type": "STRING"
+          }
+        }
+      },
+      "outputDefinitions": {
+        "artifacts": {
+          "train-model-metrics": {
+            "artifactType": {
+              "schemaTitle": "system.Metrics",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.8.16"
+  },
+  "runtimeConfig": {
+    "gcsOutputDirectory": "gs://default_pipeline/pipeline_root/",
+    "parameters": {
+      "input_path": {
+        "stringValue": "/gcs/default_pipeline/credit_card_default.csv"
+      },
+      "project": {
+        "stringValue": "qacomp"
+      },
+      "region": {
+        "stringValue": "us-east1"
+      },
+      "serving_container": {
+        "stringValue": "us-east1-docker.pkg.dev/qacomp/custom-predictor-repo/custom-predictor:latest"
+      }
+    }
+  }
+}
