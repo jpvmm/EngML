@@ -31,7 +31,11 @@ def train_model(
     logging.getLogger().setLevel(logging.INFO)
 
     def read_and_drop_columns(set_path: str) -> Tuple[pd.DataFrame, pd.Series]:
-        """Read csv and drop unused columns"""
+        """Read csv and drop unused columns
+        :param set_path: this is a path beloning the Dataset type
+
+        :return Tuple[x,y]: the dataframe for training/prediction and the labels
+        for training/prediction"""
         try:
             df = pd.read_csv(set_path)
             logging.info(f"Data read from {set_path}")
@@ -45,6 +49,7 @@ def train_model(
         return x, y
 
     def create_columns_transformer() -> ColumnTransformer:
+        """Will create the preprocessor used by the pipeline"""
         try:
             cat_features = ["SEX", "EDUCATION", "MARRIAGE"]
             cat_transformer = Pipeline(
@@ -107,7 +112,10 @@ def train_model(
         return preprocessor
 
     def create_model_pipeline(preprocessor: ColumnTransformer):
-        """Create a RandomForest Classifier and insert it in a pipeline"""
+        """Create a RandomForest Classifier and insert it in a pipeline
+        :param preprocessor: ColumnTransformer for data preprocessing in pipeline
+
+        :return GridSearchCV: a gridsearch model pipeline"""
         mdl = RandomForestClassifier(random_state=42)
 
         rf_pipe = Pipeline([("preprocessor", preprocessor), ("classifier", mdl)])
@@ -119,8 +127,10 @@ def train_model(
 
         return rf_grid
 
-    def log_metrics(y_test, y_pred) -> None:
-        """Will log the metric to a Vertex Artifact"""
+    def log_metrics(y_test: pd.Series, y_pred: pd.Series) -> None:
+        """Will log the metric to a Vertex Artifact
+        :param y_test: Test labels out of the split
+        :param y_pred: Predicted labels out of the model"""
         f1 = f1_score(y_test, y_pred, average="macro")
         acc = accuracy_score(y_test, y_pred)
         recall = recall_score(y_test, y_pred)
