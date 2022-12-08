@@ -1,8 +1,9 @@
-from pipeline.pipeline import model_training
-from kfp.v2 import compiler, dsl
 from datetime import datetime
-from google.cloud import aiplatform
 
+from google.cloud import aiplatform
+from kfp.v2 import compiler, dsl
+
+from pipeline.pipeline import model_training
 
 TIMESTAMP = datetime.now().strftime("%Y%m%d%H%M%S")
 PACKAGE_PATH = "pipeline_packages/uci.json"

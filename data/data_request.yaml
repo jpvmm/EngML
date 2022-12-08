@@ -1,0 +1,105 @@
+type: object
+properties:
+  LIMIT_BAL:
+    type: number
+  SEX:
+    type: number
+  EDUCATION:
+    type: number
+  MARRIAGE:
+    type: number
+  AGE:
+    type: number
+  PAY_0:
+    type: number
+  PAY_1:
+    type: number
+  PAY_2:
+    type: number
+  PAY_3:
+    type: number
+  PAY_4:
+    type: number
+  PAY_5:
+    type: number
+  PAY_6:
+    type: number
+  BILL_AMT1:
+    type: number
+  BILL_AMT2:
+    type: number
+  BILL_AMT3:
+    type: number
+  BILL_AMT4:
+    type: number
+  BILL_AMT5:
+    type: number
+  BILL_AMT6:
+    type: number
+  PAY_AMT1:
+    type: number
+  PAY_AMT2:
+    type: number
+  PAY_AMT3:
+    type: number
+  PAY_AMT4:
+    type: number
+  PAY_AMT5:
+    type: number
+  PAY_AMT6:
+    type: number
+  diff_paid11:
+    type: number
+  diff_paid2:
+    type: number
+  diff_paid3:
+    type: number
+  diff_paid4:
+    type: number
+  diff_paid5:
+    type: number
+  diff_paid6:
+    type: number
+  sum_bill_amount:
+    type: number
+  sum_payment_delay:
+    type: number
+  sum_payment_amount:
+    type: number
+  %_sum_bill_in_limit:
+    type: number
+required:
+-  LIMIT_BAL
+-  SEX
+-  EDUCATION
+-  MARRIAGE
+-  AGE
+-  PAY_0
+-  PAY_1
+-  PAY_2
+-  PAY_3
+-  PAY_4
+-  PAY_5
+-  PAY_6
+-  BILL_AMT1
+-  BILL_AMT2
+-  BILL_AMT3
+-  BILL_AMT4
+-  BILL_AMT5
+-  BILL_AMT6
+-  PAY_AMT1
+-  PAY_AMT2
+-  PAY_AMT3
+-  PAY_AMT4
+-  PAY_AMT5
+-  PAY_AMT6
+-  diff_paid11
+-  diff_paid2
+-  diff_paid3
+-  diff_paid4
+-  diff_paid5
+-  diff_paid6
+-  sum_bill_amount
+-  sum_payment_delay
+-  sum_payment_amount
+-  %_sum_bill_in_limit
