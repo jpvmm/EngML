@@ -19,3 +19,15 @@ To do that I will follow the these steps:
 5. BigQuery Table creation for model metada storage;
 6. Devolopment of custom prediction image to deal with preprocessing in prediction time;
 7. Setup of Vertex Model monitoring for data and concept drifts.
+
+## Running the Pipeline:
+
+To run the pipeline first you need to have a GCP service account with all the required permissions.
+
+Once the service account is ready you can set the bucket with the data using the parameter_values.json in the field **input_path**. Notice, the path must be a GCS FUSE path to the .csv file contaning the training the data.
+
+After that, you can it by:
+
+``` 
+python run_pipeline.py --service_account yoursa
+```
