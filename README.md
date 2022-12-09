@@ -29,5 +29,5 @@ Once the service account is ready you can set the bucket with the data using the
 After that, you can it by:
 
 ``` 
-python run_pipeline.py --service_account yoursa
+python run_pipeline.py --service_account yoursa@project_id.iam.gserviceaccount.com
 ```
