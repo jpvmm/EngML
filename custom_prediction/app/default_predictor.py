@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
-from google.cloud.aiplatform.prediction.sklearn.predictor import SklearnPredictor
+from google.cloud.aiplatform.prediction.sklearn.predictor import \
+    SklearnPredictor
 
 
 class DefaultRiskPredictor(SklearnPredictor):

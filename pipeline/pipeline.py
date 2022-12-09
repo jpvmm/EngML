@@ -1,10 +1,7 @@
-from components import (
-    compare_results_in_bigquery,
-    deploy_model,
-    read_and_process_data,
-    train_model,
-)
 from kfp.v2 import dsl
+
+from components import (compare_results_in_bigquery, deploy_model,
+                        read_and_process_data, train_model)
 
 BUCKET_NAME = "gs://default_pipeline"
 PIPELINE_ROOT = f"{BUCKET_NAME}/pipeline_root/"

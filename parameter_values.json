@@ -1,0 +1,6 @@
+{
+    "input_path" : "/gcs/default_pipeline/credit_card_default.csv",
+    "project": "qacomp",
+    "region": "us-east1",
+    "serving_container": "us-east1-docker.pkg.dev/qacomp/custom-predictor-repo/custom-predictor:latest"
+}
