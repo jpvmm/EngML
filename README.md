@@ -1,4 +1,4 @@
-# MLAnalytics
+# Projeto Engenharia de Machine Learning
 This repository has the idea to build a first cut of a MLOps pipeline end to end in VertexAI.
 
 The overview architecture of the project is this:
